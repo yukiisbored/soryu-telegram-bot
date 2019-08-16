@@ -1,0 +1,73 @@
+#!/bin/sh
+#
+# Soryu - Telegram Bot written in POSIX sh
+# Copyright 2019 Muhammad Kaisar Arkhan <hi@yukiisbo.red>
+#
+# Permission to use, copy, modify, and/or distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notice and this permission notice appear in all copies.
+#
+# THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+# WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+# MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+# ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+# WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+# ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+# OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+#
+
+set -e -b -u -f
+
+SCRIPTS_DIR="$SORYU_ROOT/scripts"
+DATA_DIR="$SORYU_ROOT/data"
+OFFSET_FILE="$DATA_DIR/offset"
+
+TELEGRAM_API_URL="https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN"
+
+alias jqr="jq -r"
+alias curl="curl --fail"
+
+[ ! -d "$SCRIPTS_DIR" ] && mkdir -p $SCRIPTS_DIR
+[ ! -d "$DATA_DIR" ] && mkdir -p $DATA_DIR
+
+query="$TELEGRAM_API_URL/getUpdates?allowed_updates=message"
+
+if [ -f "$OFFSET_FILE" ]
+then
+    offset=$(cat "$OFFSET_FILE")
+    offset=$((offset+1))
+    query="$query&offset=$offset"
+fi
+
+res="$(curl $query 2>/dev/null)"
+
+echo "$res" | jq -c '.result[]' | while read i
+do
+    echo "$i" | jqr '.update_id' > "$OFFSET_FILE"
+
+    message_id="$(echo $i | jqr '.message.message_id')"
+    chat_id="$(echo $i | jqr '.message.chat.id')"
+    username="$(echo $i | jqr '.message.from.username')"
+    text="$(echo $i | jqr '.message.text')"
+
+    if echo "$text" | grep '^/' >/dev/null 2>&1
+    then
+	command=$(echo "$text" | cut -d ' ' -f1)
+	args=$(echo "$text" | cut -d ' ' -f2-)
+	args=${args#$command}
+	script="$SCRIPTS_DIR$command"
+
+	[ $(dirname "$script") = "$SCRIPTS_DIR" ]
+	[ -x "$script" ]
+
+	echo "[$message_id] $username on $chat_id - $script ($args)"
+
+	output="$(env TELEGRAM_USERNAME=$username $script $args)"
+	output="$(echo $output | jq -R .)"
+
+	curl \
+	    -d "{\"chat_id\":$chat_id,\"reply_to_message_id\":$message_id,\"parse_mode\":\"Markdown\",\"text\":$output}" \
+	    -H "Content-Type: application/json" \
+	    -X POST "$TELEGRAM_API_URL/sendMessage"
+    fi
+done

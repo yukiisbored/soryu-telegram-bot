@@ -1,0 +1,9 @@
+#!/bin/sh
+
+if [ -z "$@" ]; then
+    echo "Usage: cowsay <message>"
+fi
+
+echo '```'
+echo "$@" | cowsay
+echo '```'

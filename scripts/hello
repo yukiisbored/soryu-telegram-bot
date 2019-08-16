@@ -1,0 +1,5 @@
+#!/bin/sh
+
+[ -n "$1" ] && TELEGRAM_USERNAME="$1"
+
+echo "Hello, $TELEGRAM_USERNAME!"
