@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env ksh
 
 if [ -z "$@" ]; then
     echo "Usage: cowsay <message>"

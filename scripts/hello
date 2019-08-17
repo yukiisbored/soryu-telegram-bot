@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env ksh
 
 [ -n "$1" ] && TELEGRAM_USERNAME="$1"
 

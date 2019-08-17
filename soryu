@@ -1,6 +1,6 @@
-#!/bin/sh
+#!/usr/bin/env ksh
 #
-# Soryu - Telegram Bot written in POSIX sh
+# Soryu - Telegram Bot written in ksh
 # Copyright 2019 Muhammad Kaisar Arkhan <hi@yukiisbo.red>
 #
 # Permission to use, copy, modify, and/or distribute this software for any
@@ -26,6 +26,8 @@ TELEGRAM_API_URL="https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN"
 
 alias jqr="jq -r"
 alias curl="curl --fail"
+alias echo="echo -E"
+alias msgf="printf >&2"
 
 [ ! -d "$SCRIPTS_DIR" ] && mkdir -p $SCRIPTS_DIR
 [ ! -d "$DATA_DIR" ] && mkdir -p $DATA_DIR
@@ -52,22 +54,23 @@ do
 
     if echo "$text" | grep '^/' >/dev/null 2>&1
     then
-	command=$(echo "$text" | cut -d ' ' -f1)
-	args=$(echo "$text" | cut -d ' ' -f2-)
-	args=${args#$command}
+	command="$(echo "$text" | cut -d ' ' -f1)"
+	args="$(echo "$text" | cut -d ' ' -f2-)"
+	args="${args#$command}"
 	script="$SCRIPTS_DIR$command"
 
 	[ $(dirname "$script") = "$SCRIPTS_DIR" ]
 	[ -x "$script" ]
 
-	echo "[$message_id] $username on $chat_id - $script ($args)"
+	msgf "[%s] %s on %s - %s (%s)\n" "$message_id" "$username" "$chat_id" "$command" "$args"
 
-	output="$(env TELEGRAM_USERNAME=$username $script $args)"
-	output="$(echo $output | jq -R .)"
+	output="$(env TELEGRAM_USERNAME=$username $script $args | jq -R .)"
 
 	curl \
-	    -d "{\"chat_id\":$chat_id,\"reply_to_message_id\":$message_id,\"parse_mode\":\"Markdown\",\"text\":$output}" \
-	    -H "Content-Type: application/json" \
-	    -X POST "$TELEGRAM_API_URL/sendMessage"
+	    --data "{\"chat_id\":$chat_id,\"reply_to_message_id\":$message_id,\"parse_mode\":\"Markdown\",\"text\":$output}" \
+	    --header "Content-Type: application/json" \
+	    --request POST \
+	    --silent --show-error \
+	    "$TELEGRAM_API_URL/sendMessage" >/dev/null
     fi
 done
